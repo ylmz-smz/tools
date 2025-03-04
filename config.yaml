@@ -8,4 +8,4 @@ query_params:
   seat_types:
     - 二等座
     - 一等座
-  interval: 60
+  interval: 60f
