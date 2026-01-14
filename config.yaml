@@ -1,10 +1,37 @@
+# 12306 账号登录配置（可选，如果查询需要登录则填写）
+login_config:
+  # 方式1: 账号密码登录（可能需要验证码，成功率较低）
+  enabled: false  # 是否启用账号密码登录
+  username: ''    # 12306 账号（手机号或邮箱）
+  password: ''    # 12306 密码
+  
+  # 方式2: Cookie登录（推荐，成功率高）
+  # 使用方法：在浏览器登录12306后，按F12打开开发者工具，
+  # 在 Application > Cookies 中找到 kyfw.12306.cn 的Cookie，
+  # 复制以下关键Cookie的值填入：
+  cookie_login:
+    enabled: true  # 是否启用Cookie登录
+    # 从浏览器复制以下Cookie值（登录后才有）:
+    JSESSIONID: '22681179FBA6BF88DEA69970D0BA0C40'      # 会话ID
+    tk: 'f7UsxnLYDVGihGxPzLI8CH39dFRizhaJk3V4bwply1y0'              # 登录令牌
+    uamtk: 'fdc84c51ef79a82c97ab0bd5ae5888076907c0d1a8d353cdb33a45dbe370432b'           # 用户认证令牌
+    # 或者直接粘贴完整的Cookie字符串（更简单）:
+    # 在浏览器开发者工具 Network 标签中，找到任意请求，
+    # 复制请求头中的完整 Cookie 值粘贴到这里：
+    cookie_string: '_uab_collina=174107701245257674584647; JSESSIONID=22681179FBA6BF88DEA69970D0BA0C40; tk=f7UsxnLYDVGihGxPzLI8CH39dFRizhaJk3V4bwply1y0; _jc_save_wfdc_flag=dc; BIGipServerportal=3084124426.16671.0000; route=c5c62a339e7744272a54643b3be5bf64; BIGipServerotn=1742274826.50210.0000; guidesStatus=off; highContrastMode=defaltMode; cursorStatus=off; BIGipServerpassport=820510986.50215.0000; uKey=fdc84c51ef79a82c97ab0bd5ae5888076907c0d1a8d353cdb33a45dbe370432b; _jc_save_fromStation=%u6D1B%u9633%2CLYF; _jc_save_toStation=%u5F00%u5C01%2CKFF; _jc_save_fromDate=2026-01-14; _jc_save_toDate=2026-01-14'
+
+# 查询参数配置
 query_params:
+  # from_station: 清河
   from_station: 太子城
+  # to_station: 太子城
   to_station: 清河
-  train_date: '2025-03-16'
+  train_date: '2026-01-18'
   train_codes:
-    - D9266
-    - D9268
+    - G7832
+    - G7834
+    - G7836
+    - G7838
   seat_types:
     - 二等座
     - 一等座

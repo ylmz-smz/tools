@@ -43,8 +43,6 @@ class TrainTicketMonitor:
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
         self.proxies = None
-        self.is_logged_in = False
-        self.username = None
         
     def set_proxy(self, proxy=None):
         """设置代理"""
@@ -56,191 +54,6 @@ class TrainTicketMonitor:
             print(f"已设置代理: {proxy}")
         else:
             self.proxies = None
-    
-    def login(self, username, password):
-        """登录12306账号
-        
-        注意：12306的登录流程较为复杂，包含验证码验证等。
-        这个简化版本尝试基本的登录流程，但可能需要人工介入处理验证码。
-        推荐使用 login_with_cookie() 方法代替。
-        """
-        try:
-            print(f"\n正在尝试登录12306账号: {username}")
-            print("注意：账号密码登录通常需要验证码，成功率较低")
-            print("推荐使用Cookie登录方式")
-            
-            # 第一步：访问登录页面，获取必要的cookies
-            login_page_url = "https://kyfw.12306.cn/otn/resources/login.html"
-            headers = self.headers.copy()
-            headers.update({
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-            })
-            
-            response = self.session.get(
-                login_page_url,
-                headers=headers,
-                proxies=self.proxies,
-                verify=False,
-                timeout=15
-            )
-            
-            if response.status_code != 200:
-                print(f"访问登录页面失败，状态码: {response.status_code}")
-                return False
-            
-            time.sleep(1)
-            
-            # 尝试登录
-            login_url = "https://kyfw.12306.cn/otn/login/loginAysnSuggest"
-            
-            login_data = {
-                'loginUserDTO.user_name': username,
-                'userDTO.password': password,
-                'randCode': '',
-            }
-            
-            headers.update({
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'X-Requested-With': 'XMLHttpRequest',
-                'Referer': 'https://kyfw.12306.cn/otn/resources/login.html',
-                'Accept': '*/*',
-            })
-            
-            response = self.session.post(
-                login_url,
-                data=login_data,
-                headers=headers,
-                proxies=self.proxies,
-                verify=False,
-                timeout=15
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                
-                if result.get('data', {}).get('loginCheck') == 'Y':
-                    self.is_logged_in = True
-                    self.username = username
-                    print("✓ 登录成功！")
-                    return True
-                else:
-                    error_msg = result.get('messages', ['未知错误'])
-                    print(f"✗ 登录失败: {error_msg}")
-                    print("\n请使用Cookie登录方式（推荐）")
-                    return False
-            else:
-                print(f"✗ 登录请求失败，状态码: {response.status_code}")
-                return False
-                
-        except Exception as e:
-            print(f"✗ 登录过程出错: {e}")
-            return False
-    
-    def login_with_cookie(self, cookie_config):
-        """使用Cookie登录（推荐方式）
-        
-        Args:
-            cookie_config: Cookie配置字典，包含:
-                - cookie_string: 完整的Cookie字符串（优先使用）
-                - 或单独的Cookie字段: JSESSIONID, tk, uamtk 等
-        """
-        try:
-            print("\n正在使用Cookie登录...")
-            
-            # 优先使用完整的cookie_string
-            cookie_string = cookie_config.get('cookie_string', '')
-            
-            if cookie_string and cookie_string.strip():
-                # 解析cookie字符串并设置到session
-                print("使用完整Cookie字符串登录...")
-                cookies = {}
-                for item in cookie_string.split(';'):
-                    item = item.strip()
-                    if '=' in item:
-                        key, value = item.split('=', 1)
-                        cookies[key.strip()] = value.strip()
-                
-                # 设置cookies到session
-                for key, value in cookies.items():
-                    self.session.cookies.set(key, value, domain='.12306.cn')
-                
-                print(f"已导入 {len(cookies)} 个Cookie")
-            else:
-                # 使用单独的Cookie字段
-                print("使用单独Cookie字段登录...")
-                cookie_fields = ['JSESSIONID', 'tk', 'uamtk', 'uamclk', 'route', 
-                               'BIGipServerotn', 'BIGipServerpassport']
-                
-                set_count = 0
-                for field in cookie_fields:
-                    value = cookie_config.get(field, '')
-                    if value and value.strip():
-                        self.session.cookies.set(field, value.strip(), domain='.12306.cn')
-                        set_count += 1
-                
-                if set_count == 0:
-                    print("✗ 未配置任何有效的Cookie")
-                    return False
-                
-                print(f"已设置 {set_count} 个Cookie字段")
-            
-            # 验证Cookie是否有效
-            print("验证Cookie有效性...")
-            if self.check_login_status():
-                self.is_logged_in = True
-                print("✓ Cookie登录成功！")
-                return True
-            else:
-                print("✗ Cookie无效或已过期，请重新获取")
-                print("\n获取Cookie的步骤：")
-                print("1. 在浏览器中打开 https://kyfw.12306.cn 并登录")
-                print("2. 按F12打开开发者工具")
-                print("3. 切换到 Network（网络）标签")
-                print("4. 刷新页面，点击任意一个请求")
-                print("5. 在请求头(Request Headers)中找到 Cookie")
-                print("6. 复制完整的Cookie值到 config.yaml 的 cookie_string 字段")
-                return False
-                
-        except Exception as e:
-            print(f"✗ Cookie登录出错: {e}")
-            return False
-    
-    def check_login_status(self):
-        """检查当前登录状态"""
-        try:
-            # 访问一个需要登录的页面来检查状态
-            check_url = "https://kyfw.12306.cn/otn/login/checkUser"
-            headers = self.headers.copy()
-            headers.update({
-                'X-Requested-With': 'XMLHttpRequest',
-                'Referer': 'https://kyfw.12306.cn/otn/leftTicket/init',
-            })
-            
-            response = self.session.post(
-                check_url,
-                headers=headers,
-                proxies=self.proxies,
-                verify=False,
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('data', {}).get('flag'):
-                    self.is_logged_in = True
-                    print("✓ 当前已登录")
-                    return True
-            
-            self.is_logged_in = False
-            return False
-            
-        except Exception as e:
-            print(f"检查登录状态失败: {e}")
-            self.is_logged_in = False
-            return False
         
     def query_tickets(self, from_station, to_station, train_date, train_codes=None):
         """查询车票信息"""
@@ -319,9 +132,6 @@ class TrainTicketMonitor:
                     # 尝试解析JSON
                     try:
                         data = response.json()
-                        
-                        # 添加调试信息
-                        print(f"API返回数据: {json.dumps(data, ensure_ascii=False)[:500]}...")
                         
                         # 检查API返回的数据结构
                         if 'data' in data and 'result' in data['data']:
@@ -557,26 +367,26 @@ class TrainTicketMonitor:
             print(f"无法找到站点代码: {from_station} 或 {to_station}")
             return []
         
-        # 不再访问init页面，直接调用API
-        # 构建API URL (直接跳过网页加载，直接使用API)
-        api_url = f"https://kyfw.12306.cn/otn/leftTicket/query?leftTicketDTO.train_date={train_date}&leftTicketDTO.from_station={from_code}&leftTicketDTO.to_station={to_code}&purpose_codes=ADULT"
+        # 构建URL
+        url = f"https://kyfw.12306.cn/otn/leftTicket/init?linktypeid=dc&fs={from_station},{from_code}&ts={to_station},{to_code}&date={train_date}&flag=N,N,Y"
         
-        print(f"访问API: {api_url}")
+        print(f"访问网页: {url}")
         
         # 添加更多请求头，模拟真实浏览器
         headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': '*/*',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            'Referer': 'https://kyfw.12306.cn/otn/leftTicket/init',
+            'Referer': 'https://kyfw.12306.cn/otn/index/init',
             'Connection': 'keep-alive',
-            'X-Requested-With': 'XMLHttpRequest',
+            'Upgrade-Insecure-Requests': '1',
             'sec-ch-ua': '"Google Chrome";v="120", "Chromium";v="120", "Not-A.Brand";v="99"',
             'sec-ch-ua-mobile': '?0',
             'sec-ch-ua-platform': '"macOS"',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
         }
         
         try:
@@ -585,9 +395,9 @@ class TrainTicketMonitor:
             print(f"随机延迟 {delay:.2f} 秒...")
             time.sleep(delay)
             
-            # 发送请求 - 直接调用API
+            # 发送请求
             response = self.session.get(
-                api_url, 
+                url, 
                 headers=headers, 
                 timeout=15,
                 proxies=self.proxies,
@@ -595,25 +405,49 @@ class TrainTicketMonitor:
             )
             response.raise_for_status()
             
-            # 检查响应是否为JSON
-            try:
-                data = response.json()
-                print(f"API返回数据: {json.dumps(data, ensure_ascii=False)[:500]}...")
-            except json.JSONDecodeError:
-                # 如果不是JSON，可能是登录页面
-                if "请登录" in response.text or "登录名" in response.text or "<title>登录</title>" in response.text:
-                    print("需要登录12306账号才能查询车票")
-                    return []
-                else:
-                    print(f"API返回非JSON响应，状态码: {response.status_code}")
-                    return []
-            
-            # 检查API返回结果
-            if not data.get('httpstatus') == 200 and not data.get('status'):
-                # 可能需要登录或者API返回错误
-                if data.get('messages'):
-                    print(f"API返回错误: {data.get('messages')}")
+            # 检查是否需要登录
+            if "请登录" in response.text or "登录名" in response.text:
+                print("需要登录12306账号才能查询车票")
                 return []
+            
+            # 这个页面不直接包含车票数据，而是通过JavaScript加载
+            # 我们需要提取出查询参数，然后调用API获取数据
+            
+            # 从页面中提取查询参数
+            import re
+            
+            # 提取CLeftTicketUrl
+            ticket_url_match = re.search(r"var CLeftTicketUrl = '([^']+)'", response.text)
+            if not ticket_url_match:
+                print("无法从页面提取查询参数")
+                return []
+            
+            ticket_url = ticket_url_match.group(1)
+            
+            # 构建API URL
+            api_url = f"https://kyfw.12306.cn/otn/{ticket_url}?leftTicketDTO.train_date={train_date}&leftTicketDTO.from_station={from_code}&leftTicketDTO.to_station={to_code}&purpose_codes=ADULT"
+            
+            print(f"提取到的API URL: {api_url}")
+            
+            # 添加随机延迟
+            time.sleep(random.uniform(0.5, 1.5))
+            
+            # 发送API请求
+            api_headers = headers.copy()
+            api_headers['Accept'] = '*/*'
+            api_headers['X-Requested-With'] = 'XMLHttpRequest'
+            
+            api_response = self.session.get(
+                api_url,
+                headers=api_headers,
+                timeout=15,
+                proxies=self.proxies,
+                verify=False
+            )
+            api_response.raise_for_status()
+            
+            # 解析JSON响应
+            data = api_response.json()
             
             # 检查API返回的数据结构
             if 'data' in data and 'result' in data['data']:
@@ -714,34 +548,6 @@ if __name__ == "__main__":
     if args.proxy:
         monitor.set_proxy(args.proxy)
     
-    # 尝试加载配置文件
-    config = load_config(args.config)
-    
-    # 处理登录配置
-    if config and 'login_config' in config:
-        login_config = config['login_config']
-        login_success = False
-        
-        # 优先尝试Cookie登录
-        cookie_config = login_config.get('cookie_login', {})
-        if cookie_config.get('enabled'):
-            login_success = monitor.login_with_cookie(cookie_config)
-        
-        # 如果Cookie登录未启用或失败，尝试账号密码登录
-        if not login_success and login_config.get('enabled'):
-            if login_config.get('username') and login_config.get('password'):
-                print("\nCookie登录未成功，尝试账号密码登录...")
-                login_success = monitor.login(login_config['username'], login_config['password'])
-        
-        if not login_success:
-            print("\n" + "="*50)
-            print("登录失败，但仍将尝试查询（部分查询可能无需登录）")
-            print("="*50)
-            choice = input("是否继续? (y/n): ")
-            if choice.lower() != 'y':
-                print("程序退出")
-                exit(0)
-    
     # 如果命令行参数提供了完整的查询参数，直接使用
     if args.from_station and args.to_station and args.date:
         from_station = args.from_station
@@ -754,6 +560,8 @@ if __name__ == "__main__":
         # 开始监控
         monitor.monitor_tickets(from_station, to_station, train_date, train_codes, seat_types, interval)
     else:
+        # 尝试加载配置文件
+        config = load_config(args.config)
         
         if config and 'query_params' in config:
             # 使用配置文件中的参数

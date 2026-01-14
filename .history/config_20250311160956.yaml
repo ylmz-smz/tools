@@ -1,0 +1,10 @@
+query_params:
+  from_station: 清河
+  to_station: 太子城
+  train_date: '2025-03-15'
+  train_codes:
+    - D9261
+  seat_types:
+    - 二等座
+    - 一等座
+  interval: 60
