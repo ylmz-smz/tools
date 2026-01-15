@@ -28,11 +28,15 @@ query_params:
   to_station: 清河
   train_date: '2026-01-18'
   train_codes:
-    - G7832
-    - G7834
+    # 17点太子城回北京
     - G7836
-    - G7838
+    # 18点太子城回北京
+    - D9268
+    # 7点北京到太子城
+    # - G7831
+    # 6点北京到太子城
+    # - D9261
   seat_types:
     - 二等座
     - 一等座
-  interval: 60
+  interval: 10  # 查询间隔时间，单位秒
