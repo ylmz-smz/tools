@@ -10,6 +10,10 @@ import random
 import urllib3
 import argparse
 
+# PushPlus 推送配置
+PUSHPLUS_TOKEN = "30e6fd60c6174936be254e678f9b7bfa"
+PUSHPLUS_URL = "http://www.pushplus.plus/send"
+
 # 根据操作系统选择提醒方式
 system = platform.system()
 if system == 'Windows':
@@ -45,6 +49,9 @@ class TrainTicketMonitor:
         self.proxies = None
         self.is_logged_in = False
         self.username = None
+        # PushPlus 推送状态跟踪
+        self.train_found_notified = set()  # 已通知发现的车次
+        self.train_available_notified = set()  # 已通知有票的车次
         
     def set_proxy(self, proxy=None):
         """设置代理"""
@@ -57,6 +64,123 @@ class TrainTicketMonitor:
         else:
             self.proxies = None
     
+    def push_notification(self, title, content, template="html"):
+        """通过 PushPlus 发送微信推送通知
+        
+        Args:
+            title: 消息标题
+            content: 消息内容（支持HTML格式）
+            template: 模板类型，默认html，可选 txt/html/json/markdown
+        
+        Returns:
+            bool: 推送是否成功
+        """
+        try:
+            data = {
+                "token": PUSHPLUS_TOKEN,
+                "title": title,
+                "content": content,
+                "template": template
+            }
+            response = requests.post(PUSHPLUS_URL, json=data, timeout=10)
+            result = response.json()
+            
+            if result.get("code") == 200:
+                print(f"✓ PushPlus推送成功: {title}")
+                return True
+            else:
+                print(f"✗ PushPlus推送失败: {result.get('msg', '未知错误')}")
+                return False
+        except Exception as e:
+            print(f"✗ PushPlus推送异常: {e}")
+            return False
+    
+    def notify_train_found(self, train_info, from_station, to_station, train_date):
+        """推送发现指定车次的通知（每个车次只推送一次）
+        
+        Args:
+            train_info: 车次信息字典
+            from_station: 出发站
+            to_station: 到达站
+            train_date: 出发日期
+        """
+        train_code = train_info['train_code']
+        
+        # 检查是否已经通知过
+        if train_code in self.train_found_notified:
+            return
+        
+        title = f"🚄 发现车次 {train_code}"
+        content = f"""
+        <h3>车次信息</h3>
+        <p><b>车次:</b> {train_code}</p>
+        <p><b>日期:</b> {train_date}</p>
+        <p><b>区间:</b> {from_station} → {to_station}</p>
+        <p><b>发车时间:</b> {train_info['departure_time']}</p>
+        <p><b>到达时间:</b> {train_info['arrival_time']}</p>
+        <p><b>历时:</b> {train_info['duration']}</p>
+        <hr>
+        <h4>座位情况</h4>
+        <ul>
+            <li>商务座: {train_info['seats'].get('商务座', '--')}</li>
+            <li>一等座: {train_info['seats'].get('一等座', '--')}</li>
+            <li>二等座: {train_info['seats'].get('二等座', '--')}</li>
+            <li>硬卧: {train_info['seats'].get('硬卧', '--')}</li>
+            <li>软卧: {train_info['seats'].get('软卧', '--')}</li>
+            <li>硬座: {train_info['seats'].get('硬座', '--')}</li>
+            <li>无座: {train_info['seats'].get('无座', '--')}</li>
+        </ul>
+        <p style="color: gray; font-size: 12px;">发现时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        """
+        
+        if self.push_notification(title, content):
+            self.train_found_notified.add(train_code)
+    
+    def notify_ticket_available(self, train_info, from_station, to_station, train_date, available_seats):
+        """推送有票通知（每个车次只推送一次）
+        
+        Args:
+            train_info: 车次信息字典
+            from_station: 出发站
+            to_station: 到达站
+            train_date: 出发日期
+            available_seats: 有票的座位类型列表
+        """
+        train_code = train_info['train_code']
+        
+        # 检查是否已经通知过
+        if train_code in self.train_available_notified:
+            return
+        
+        # 构建有票座位信息
+        seats_html = ""
+        for seat_type in available_seats:
+            count = train_info['seats'].get(seat_type, '--')
+            seats_html += f"<li><b style='color: green;'>{seat_type}: {count}</b></li>"
+        
+        title = f"🎫 有票啦！{train_code} {from_station}→{to_station}"
+        content = f"""
+        <h2 style="color: red;">🎉 有票提醒！</h2>
+        <h3>车次信息</h3>
+        <p><b>车次:</b> {train_code}</p>
+        <p><b>日期:</b> {train_date}</p>
+        <p><b>区间:</b> {from_station} → {to_station}</p>
+        <p><b>发车时间:</b> {train_info['departure_time']}</p>
+        <p><b>到达时间:</b> {train_info['arrival_time']}</p>
+        <p><b>历时:</b> {train_info['duration']}</p>
+        <hr>
+        <h4 style="color: green;">✅ 有票座位</h4>
+        <ul>
+            {seats_html}
+        </ul>
+        <hr>
+        <p><a href="https://kyfw.12306.cn/otn/leftTicket/init">👉 点击前往12306购票</a></p>
+        <p style="color: gray; font-size: 12px;">检测时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        """
+        
+        if self.push_notification(title, content):
+            self.train_available_notified.add(train_code)
+
     def login(self, username, password):
         """登录12306账号
         
@@ -474,6 +598,10 @@ class TrainTicketMonitor:
             if tickets:
                 self.display_tickets(tickets)
                 
+                # 推送发现车次通知（每个车次只推送一次）
+                for ticket in tickets:
+                    self.notify_train_found(ticket, from_station, to_station, train_date)
+                
                 # 检查是否有可用票
                 available_tickets = []
                 for ticket in tickets:
@@ -492,11 +620,17 @@ class TrainTicketMonitor:
                         print(ticket_info)
                         notification_message += ticket_info + "\n"
                         
+                        # 获取有票的座位类型
+                        available_seat_types = []
                         for seat_type in seat_types if seat_types else ticket['seats'].keys():
                             if ticket['seats'][seat_type] not in ['--', '无']:
                                 seat_info = f"  {seat_type}: {ticket['seats'][seat_type]}"
                                 print(seat_info)
                                 notification_message += seat_info + "\n"
+                                available_seat_types.append(seat_type)
+                        
+                        # 推送有票通知（每个车次只推送一次）
+                        self.notify_ticket_available(ticket, from_station, to_station, train_date, available_seat_types)
                     
                     # 发出提醒声音（根据不同操作系统）
                     for _ in range(5):
