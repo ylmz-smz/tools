@@ -26,7 +26,7 @@ query_params:
   from_station: 太子城
   # to_station: 太子城
   to_station: 清河
-  train_date: '2026-01-25'
+  train_date: '2026-02-01'
   train_codes:
     # 17点太子城回北京
     # - G7836
